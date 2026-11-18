@@ -23,7 +23,7 @@ export async function GET(request) {
     await connectMongo();
     const visitors = await Visitor.find({})
       .sort({ visitedAt: -1 })
-      .select('name visitorId createdAt visitedAt')
+      .select('name visitorId createdAt visitedAt giftOpenedAt giftOpenedCount cheerSentAt')
       .lean();
 
     return NextResponse.json({
@@ -32,6 +32,9 @@ export async function GET(request) {
         name: visitor.name,
         createdAt: visitor.createdAt,
         visitedAt: visitor.visitedAt,
+        giftOpenedAt: visitor.giftOpenedAt,
+        giftOpenedCount: visitor.giftOpenedCount || 0,
+        cheerSentAt: visitor.cheerSentAt,
       })),
     });
   } catch (error) {

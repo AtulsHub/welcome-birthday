@@ -9,15 +9,29 @@ export async function POST(request) {
     const body = await request.json();
     const name = clean(body.name);
     const visitorId = clean(body.visitorId).replace(/[^a-zA-Z0-9-]/g, '').slice(0, 100);
+    const action = body.action || null;
 
     if (!name || !visitorId) {
       return NextResponse.json({ error: 'Name and visitor ID are required' }, { status: 400 });
     }
+    if (action && !['gift-opened', 'cheer-sent'].includes(action)) {
+      return NextResponse.json({ error: 'Unsupported visitor action' }, { status: 400 });
+    }
 
     await connectMongo();
+    const now = new Date();
+    const set = { name, visitedAt: now };
+    if (action === 'gift-opened') set.giftOpenedAt = now;
+    if (action === 'cheer-sent') set.cheerSentAt = now;
+    const update = {
+      $set: set,
+      $setOnInsert: { createdAt: now },
+    };
+    if (action === 'gift-opened') update.$inc = { giftOpenedCount: 1 };
+
     await Visitor.findOneAndUpdate(
       { visitorId },
-      { $set: { name, visitedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+      update,
       { upsert: true, new: true, runValidators: true }
     );
 
