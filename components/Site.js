@@ -1,24 +1,36 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence, useInView, animate, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
 /* ✏️ EDIT THIS: make the site yours */
 const CONFIG = {
-  myName: 'Your Name',
+  myName: 'Atul Sharma',
   message: 'Your wish made my day brighter. Truly, I’m grateful to have you in my life, and I hope I get to celebrate with you too!',
   secret: 'Surprise! Treat’s on me next time we meet. 🍰',
   memories: ['🎈', '🎂', '🎁', '🥳', '🎉', '💌'], // swap for <img> tags if you like
-  counters: [
-    { label: 'Wishes received', to: 100, suffix: '+' },
-    { label: 'Cake slices eaten', to: 3 },
-    { label: 'Smiles', to: 999, suffix: '+' },
-  ],
 };
 
 const COLORS = ['#ff4d6d', '#ffd166', '#06d6a0', '#4cc9f0', '#b388ff', '#ff9f1c'];
 const clean = (s) => (s || '').replace(/[<>]/g, '').trim().slice(0, 30);
+
+const registerVisitor = async (name) => {
+  try {
+    let visitorId = localStorage.getItem('visitorId');
+    if (!visitorId) {
+      visitorId = crypto.randomUUID();
+      localStorage.setItem('visitorId', visitorId);
+    }
+    await fetch('/api/visitors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, visitorId }),
+    });
+  } catch {
+    // The celebration remains usable even when tracking is unavailable.
+  }
+};
 
 const burst = (o = {}) => confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 }, ...o });
 const rain = () => {
@@ -40,11 +52,13 @@ function useVisitorName() {
     if (!n) { try { n = clean(localStorage.getItem('visitorName')); } catch {} }
     setName(n || null);
     setReady(true);
+    if (n) registerVisitor(n);
   }, [params]);
   const save = (v) => {
     const n = clean(v) || 'Friend';
     try { localStorage.setItem('visitorName', n); } catch {}
     setName(n);
+    registerVisitor(n);
   };
   return { name, ready, save };
 }
@@ -61,7 +75,10 @@ function NamePrompt({ onSave }) {
         <div style={{ fontSize: '4rem' }}>👋</div>
         <h2>Hey, who’s this?</h2>
         <input autoFocus placeholder="Type your name" value={v} onChange={(e) => setV(e.target.value)} />
-        <button className="btn" type="submit">Let’s go 🎉</button>
+        <div className="prompt-actions">
+          <button className="btn" type="submit">Let’s go 🎉</button>
+          <button className="text-btn" type="button" onClick={() => onSave('Friend')}>Skip for now</button>
+        </div>
       </motion.form>
     </motion.div>
   );
@@ -70,7 +87,7 @@ function NamePrompt({ onSave }) {
 function Balloons() {
   const [b, setB] = useState([]);
   useEffect(() => {
-    setB(Array.from({ length: 14 }, (_, i) => ({
+    setB(Array.from({ length: 8 }, (_, i) => ({
       left: Math.random() * 95, s: 40 + Math.random() * 50, c: COLORS[i % COLORS.length],
       d: 14 + Math.random() * 14, dl: -Math.random() * 20,
     })));
@@ -143,41 +160,20 @@ function Memories() {
       <h2>Little moments 📸</h2>
       <div className="grid">
         {CONFIG.memories.map((m, i) => (
-          <motion.div key={i} className="tile"
+          <motion.button key={i} type="button" className="tile" aria-label={`Celebrate memory ${i + 1}`}
             initial={{ opacity: 0, scale: 0.4, rotate: i % 2 ? 15 : -15 }} whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
             viewport={{ once: true }} transition={{ delay: i * 0.1, type: 'spring' }}
             whileHover={{ scale: 1.12, rotate: i % 2 ? -6 : 6 }} whileTap={{ scale: 0.9 }}
-            onClick={() => burst({ particleCount: 40, spread: 60 })}
-          >{m}</motion.div>
+            onClick={() => {
+              const shape = confetti.shapeFromText({ text: m, scalar: 3 });
+              confetti({ shapes: [shape], scalar: 3, particleCount: 40, spread: 60 });
+            }}
+          >{m}</motion.button>
         ))}
       </div>
     </section>
   );
 }
-
-function Counter({ to, suffix = '', label }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-80px' });
-  const [v, setV] = useState(0);
-  useEffect(() => {
-    if (!inView) return;
-    const c = animate(0, to, { duration: 2.2, ease: 'easeOut', onUpdate: (x) => setV(Math.round(x)) });
-    return () => c.stop();
-  }, [inView, to]);
-  return (
-    <div ref={ref}>
-      <div className="num">{v}{suffix}</div>
-      <div className="sub" style={{ marginTop: 0 }}>{label}</div>
-    </div>
-  );
-}
-
-const Counters = () => (
-  <section>
-    <h2>Birthday by the numbers 🔢</h2>
-    <div className="counters">{CONFIG.counters.map((c) => <Counter key={c.label} {...c} />)}</div>
-  </section>
-);
 
 function Gift() {
   const [open, setOpen] = useState(false);
@@ -199,37 +195,6 @@ function Gift() {
         )}
       </AnimatePresence>
       {!open && <p className="sub">Tap to open</p>}
-    </section>
-  );
-}
-
-function PopGame() {
-  const [score, setScore] = useState(0);
-  const [bals, setBals] = useState([]);
-  const mk = (id) => ({ id, x: 3 + Math.random() * 88, y: 5 + Math.random() * 70, c: COLORS[Math.floor(Math.random() * COLORS.length)], d: Math.random() * 2 });
-  useEffect(() => { setBals(Array.from({ length: 10 }, (_, i) => mk(i))); }, []);
-  const pop = (b, e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    confetti({ particleCount: 30, spread: 70, startVelocity: 22, colors: [b.c], origin: { x: (r.left + r.width / 2) / innerWidth, y: (r.top + r.height / 2) / innerHeight } });
-    setScore((s) => { if ((s + 1) % 15 === 0) rain(); return s + 1; });
-    setBals((a) => a.filter((x) => x.id !== b.id).concat(mk(Date.now() + Math.random())));
-  };
-  return (
-    <section>
-      <h2>Pop the balloons! 🎈</h2>
-      <div className="play">
-        <AnimatePresence>
-          {bals.map((b) => (
-            <motion.button key={b.id} className="pop" aria-label="Pop balloon" style={{ left: `${b.x}%`, top: `${b.y}%`, background: b.c }}
-              initial={{ scale: 0 }} animate={{ scale: 1, y: [0, -16, 0] }}
-              transition={{ scale: { type: 'spring' }, y: { repeat: Infinity, duration: 2 + b.d, ease: 'easeInOut' } }}
-              exit={{ scale: 1.8, opacity: 0, transition: { duration: 0.15 } }}
-              whileHover={{ scale: 1.15 }} onClick={(e) => pop(b, e)}
-            />
-          ))}
-        </AnimatePresence>
-      </div>
-      <p className="score">Popped: {score} {score >= 15 ? '🏆 Legend!' : score >= 5 ? '🔥 Nice!' : ''}</p>
     </section>
   );
 }
@@ -266,9 +231,7 @@ export default function Site() {
           <Hero name={name} />
           <Message name={name} />
           <Memories />
-          <Counters />
           <Gift />
-          <PopGame />
           <Footer name={name} />
         </main>
       )}
