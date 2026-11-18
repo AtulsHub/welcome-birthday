@@ -82,7 +82,6 @@ function NamePrompt({ onSave }) {
         <input autoFocus placeholder="Your name (or royal title)" value={v} onChange={(e) => setV(e.target.value)} />
         <div className="prompt-actions">
           <button className="btn" type="submit">Let’s go 🎉</button>
-          <button className="text-btn" type="button" onClick={() => onSave('Friend')}>Skip for now</button>
         </div>
       </motion.form>
     </motion.div>
